@@ -19,6 +19,7 @@ documentos_u/
 
 # Logs y base de datos local si hubiera
 *.log
+benchmark/resultados/embeddings_cache.json
 error_build*.txt
 .DS_Store
 .vscode/

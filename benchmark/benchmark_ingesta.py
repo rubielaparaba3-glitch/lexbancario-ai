@@ -21,6 +21,7 @@ Uso:
 import argparse
 import csv
 import json
+import os
 import pathlib
 import sys
 import time
@@ -45,6 +46,48 @@ def cargar_urls(ruta: pathlib.Path) -> list[str]:
     datos = json.loads(ruta.read_text(encoding="utf-8"))
     urls = datos["urls"] if isinstance(datos, dict) else datos
     return [u for u in urls if isinstance(u, str) and u.startswith(("http://", "https://"))]
+
+
+def precalentar_embeddings(
+    urls: list[str],
+    chunk_size: int,
+    chunk_overlap: int,
+    workers: int,
+    dry_run: bool,
+) -> tuple[int, float]:
+    """Scrapea+chunkea el corpus una vez y cachea los embeddings únicos.
+
+    Esta fase serial se ejecuta una sola vez, FUERA de la ventana medida de
+    cada corrida. Así las p corridas reutilizan los vectores desde el caché y
+    el benchmark cabe en la cuota del free tier (N chunks únicos en vez de
+    p·N peticiones a la API).
+    """
+    from pipeline.chunking import chunking_procesos
+    from pipeline.embeddings import generar_embeddings
+    from pipeline.scraping import descargar_todas
+
+    print("[*] Pre-calentando caché de embeddings (fase serial única, fuera de T_p)...")
+    paginas = descargar_todas(urls, workers=workers)
+    ok = [p for p in paginas if p.ok]
+    tareas = [
+        (i, p.url, p.titulo, p.texto, chunk_size, chunk_overlap, "prewarm")
+        for i, p in enumerate(ok)
+    ]
+    resultados = chunking_procesos(tareas, workers=workers)
+    textos: list[str] = []
+    vistos: set[str] = set()
+    for r in resultados:
+        for fila in r["filas"]:
+            texto = fila["contenido"]
+            if texto not in vistos:
+                vistos.add(texto)
+                textos.append(texto)
+
+    t0 = time.perf_counter()
+    generar_embeddings(textos, dry_run=dry_run)
+    dt = time.perf_counter() - t0
+    print(f"    [✓] {len(textos)} chunks únicos cacheados en {dt:.2f}s ({len(ok)} URLs ok)\n")
+    return len(textos), round(dt, 3)
 
 
 def ejecutar_corrida(
@@ -97,10 +140,16 @@ def calcular_metricas(filas: list[dict], p_base: int = 1) -> None:
         f["eficiencia_pct"] = round(100 * f["speedup"] / f["p"], 2)
 
 
-def tabla_markdown(filas: list[dict], dry_run: bool) -> str:
+def tabla_markdown(filas: list[dict], dry_run: bool, meta: dict | None = None) -> str:
     lineas = []
     lineas.append("# Resultados del benchmark de ingesta concurrente\n")
     lineas.append(f"- Modo embeddings: {'**dry-run** (vectores sintéticos)' if dry_run else '**real** (gemini-embedding-001)'}")
+    if meta and meta.get("cache_embeddings"):
+        lineas.append(
+            f"- Caché de embeddings: **activa** "
+            f"({meta.get('embed_cache_chunks')} chunks únicos, "
+            f"pre-warm serial = {meta.get('embed_prewarm_s')} s, fuera de T_p)"
+        )
     lineas.append(f"- Fecha: {datetime.now().isoformat(timespec='seconds')}")
     lineas.append(f"- URLs: {filas[0]['urls_ok'] + filas[0]['urls_fallidas'] if filas else 0}\n")
 
@@ -207,6 +256,11 @@ def main() -> int:
     ap.add_argument("--chunk-overlap", type=int, default=200)
     ap.add_argument("--timeout", type=float, default=20.0)
     ap.add_argument("--dry-run", action="store_true", help="Embeddings sintéticos (no consume cuota)")
+    ap.add_argument(
+        "--cache-embeddings",
+        action="store_true",
+        help="Cachea embeddings únicos (pre-warm) para que p corridas no agoten la cuota de la API",
+    )
     ap.add_argument("--output-dir", default=str(RAIZ / "benchmark" / "resultados"))
     ap.add_argument("--pausa-entre-corridas", type=float, default=5.0)
     ap.add_argument("--limpiar-final", action="store_true", help="Elimina las colecciones de prueba al terminar")
@@ -223,9 +277,25 @@ def main() -> int:
     dir_salida.mkdir(parents=True, exist_ok=True)
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
 
+    prewarm_chunks = None
+    prewarm_s = None
+    if args.cache_embeddings:
+        ruta_cache = dir_salida / "embeddings_cache.json"
+        os.environ["EMBED_CACHE_FILE"] = str(ruta_cache)
+        print(f"[*] Caché de embeddings activada → {ruta_cache}\n")
+
     print(f"[*] Benchmark de ingesta | URLs: {len(urls)} | workers: {lista_workers} | "
           f"modo: {'dry-run' if args.dry_run else 'real'}")
     print(f"[*] Chunking: size={args.chunk_size}, overlap={args.chunk_overlap}\n")
+
+    if args.cache_embeddings:
+        prewarm_chunks, prewarm_s = precalentar_embeddings(
+            urls,
+            args.chunk_size,
+            args.chunk_overlap,
+            max(lista_workers),
+            args.dry_run,
+        )
 
     filas: list[dict] = []
     for i, p in enumerate(lista_workers):
@@ -253,6 +323,9 @@ def main() -> int:
     meta = {
         "timestamp": datetime.now().isoformat(timespec="seconds"),
         "dry_run": args.dry_run,
+        "cache_embeddings": args.cache_embeddings,
+        "embed_prewarm_s": prewarm_s,
+        "embed_cache_chunks": prewarm_chunks,
         "urls": urls,
         "workers": lista_workers,
         "chunk_size": args.chunk_size,
@@ -265,7 +338,7 @@ def main() -> int:
     ruta_csv = dir_salida / f"benchmark_{ts}.csv"
     ruta_md = dir_salida / f"benchmark_{ts}.md"
     ruta_json.write_text(json.dumps(salida, indent=2, ensure_ascii=False), encoding="utf-8")
-    ruta_md.write_text(tabla_markdown(filas, args.dry_run), encoding="utf-8")
+    ruta_md.write_text(tabla_markdown(filas, args.dry_run, meta), encoding="utf-8")
 
     campos = list(filas[0].keys())
     with ruta_csv.open("w", newline="", encoding="utf-8") as fh:

@@ -75,9 +75,9 @@ def main() -> int:
         log("TIMEOUT: la cuota no se restableció en el tiempo máximo.")
         return 1
 
-    log("=== benchmark real (embeddings gemini-embedding-001) ===")
+    log("=== benchmark real (embeddings gemini-embedding-001, caché activa) ===")
     r1 = subprocess.run(
-        [py, "-u", "-m", "benchmark.benchmark_ingesta"],
+        [py, "-u", "-m", "benchmark.benchmark_ingesta", "--cache-embeddings"],
         cwd=RAIZ,
         capture_output=True,
         text=True,
@@ -116,7 +116,14 @@ def main() -> int:
     )
     print(r3.stdout, end="", flush=True)
     print(r3.stderr, end="", flush=True)
-    r4 = subprocess.run(["git", "push"], cwd=RAIZ, capture_output=True, text=True)
+    env_push = {
+        **os.environ,
+        "GIT_SSH_COMMAND": "ssh -o BatchMode=yes -o ConnectTimeout=30",
+        "GIT_TERMINAL_PROMPT": "0",
+    }
+    r4 = subprocess.run(
+        ["git", "push"], cwd=RAIZ, capture_output=True, text=True, env=env_push
+    )
     print(r4.stdout, end="", flush=True)
     print(r4.stderr, end="", flush=True)
 

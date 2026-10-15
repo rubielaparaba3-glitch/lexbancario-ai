@@ -3,10 +3,13 @@
 Lanza en segundo plano:
     setsid venv/bin/python -u scripts/agendar_benchmark_real.py > benchmark/agendado.log 2>&1 < /dev/null &
 
-Sondea la cuota cada 15 min (pings rechazados no consumen cuota). Cuando la
-cuota está disponible, ejecuta el benchmark real, regenera el informe y hace
-commit + push de los artefactos.
+No usa un ping de sondeo (un ping exitoso consume cuota y puede gastar el
+último request del día). En su lugar intenta el benchmark real completo con
+caché de embeddings (``--cache-embeddings``) y, si falla por 429, espera y
+reintenta hasta la fecha límite. Solo si el benchmark termina bien regenera el
+informe (a partir del JSON real) y hace commit + push de los artefactos.
 """
+import json
 import os
 import pathlib
 import subprocess
@@ -22,77 +25,74 @@ from dotenv import load_dotenv  # noqa: E402
 
 load_dotenv(RAIZ / ".env")
 
-import httpx  # noqa: E402
-
-URL = (
-    "https://generativelanguage.googleapis.com/v1beta/"
-    "models/gemini-embedding-001:embedContent"
-)
 MAX_ESPERA_H = 8.0
-INTERVALO_MIN = 15
+INTERVALO_MIN = 20
 
 
 def log(msg: str) -> None:
     print(f"[{datetime.now().isoformat(timespec='seconds')}] {msg}", flush=True)
 
 
-def cuota_ok() -> bool:
-    api_key = os.getenv("GEMINI_API_KEY")
-    if not api_key:
-        log("Falta GEMINI_API_KEY en .env")
+def intentar_benchmark(py: str) -> bool:
+    """Ejecuta el benchmark real con caché; True si termina correctamente."""
+    r = subprocess.run(
+        [py, "-u", "-m", "benchmark.benchmark_ingesta", "--cache-embeddings"],
+        cwd=RAIZ,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    print(r.stdout, end="", flush=True)
+    if r.returncode != 0:
+        cola = (r.stderr or "")[-1500:]
+        log(f"benchmark falló (rc={r.returncode}); cola de stderr:")
+        print(cola, end="", flush=True)
         return False
-    try:
-        r = httpx.post(
-            URL,
-            headers={"x-goog-api-key": api_key, "Content-Type": "application/json"},
-            json={
-                "content": {"parts": [{"text": "ping agendado"}]},
-                "outputDimensionality": 768,
-            },
-            timeout=30,
-        )
-        if r.status_code == 200:
-            return True
-        log(f"cuota agotada (HTTP {r.status_code})")
-        return False
-    except Exception as e:
-        log(f"error de red en sondeo: {type(e).__name__}")
-        return False
+    return True
 
 
 def main() -> int:
     log(f"=== scheduler iniciado (PID {os.getpid()}) ===")
     py = sys.executable
-    intentos = int(MAX_ESPERA_H * 60 / INTERVALO_MIN)
+    intentos = max(1, int(MAX_ESPERA_H * 60 / INTERVALO_MIN))
 
+    completado = False
     for i in range(intentos):
-        if cuota_ok():
-            log("cuota disponible -> lanzando benchmark real")
+        log(f"intento de benchmark real ({i + 1}/{intentos})")
+        if intentar_benchmark(py):
+            completado = True
             break
-        log(f"esperando reset de cuota ({i + 1}/{intentos}); reintento en {INTERVALO_MIN} min")
-        time.sleep(INTERVALO_MIN * 60)
-    else:
-        log("TIMEOUT: la cuota no se restableció en el tiempo máximo.")
+        if i < intentos - 1:
+            log(f"reintento en {INTERVALO_MIN} min (cuota probablemente agotada)")
+            time.sleep(INTERVALO_MIN * 60)
+
+    if not completado:
+        log("TIMEOUT: no se completó el benchmark real en el tiempo máximo. No se commitea.")
         return 1
 
-    log("=== benchmark real (embeddings gemini-embedding-001, caché activa) ===")
-    r1 = subprocess.run(
-        [py, "-u", "-m", "benchmark.benchmark_ingesta", "--cache-embeddings"],
-        cwd=RAIZ,
-        capture_output=True,
-        text=True,
-    )
-    print(r1.stdout, end="", flush=True)
-    if r1.returncode != 0:
-        log("benchmark devolvió error; stderr:")
-        print(r1.stderr, end="", flush=True)
+    dir_res = RAIZ / "benchmark" / "resultados"
+    jsons = sorted(dir_res.glob("benchmark_*.json"))
+    if not jsons:
+        log("no se encontró ningún JSON de resultados; se aborta.")
+        return 1
+    ruta_json = jsons[-1]
+
+    try:
+        meta = json.loads(ruta_json.read_text(encoding="utf-8")).get("meta", {})
+    except (OSError, json.JSONDecodeError):
+        meta = {}
+    if meta.get("dry_run", True):
+        log(f"el JSON {ruta_json.name} es dry-run; se aborta el commit.")
+        return 1
+    log(f"benchmark real OK -> {ruta_json.name}")
 
     log("=== regenerando informe ===")
     r2 = subprocess.run(
-        [py, str(RAIZ / "informe" / "generar_informe.py")],
+        [py, str(RAIZ / "informe" / "generar_informe.py"), "--json", str(ruta_json)],
         cwd=RAIZ,
         capture_output=True,
         text=True,
+        check=False,
     )
     print(r2.stdout, end="", flush=True)
     print(r2.stderr, end="", flush=True)
@@ -108,11 +108,12 @@ def main() -> int:
             "git",
             "commit",
             "-m",
-            "data: benchmark real con embeddings gemini-embedding-001 + informe regenerado",
+            "data: benchmark real (embeddings cacheados) + informe regenerado",
         ],
         cwd=RAIZ,
         capture_output=True,
         text=True,
+        check=False,
     )
     print(r3.stdout, end="", flush=True)
     print(r3.stderr, end="", flush=True)
@@ -122,7 +123,7 @@ def main() -> int:
         "GIT_TERMINAL_PROMPT": "0",
     }
     r4 = subprocess.run(
-        ["git", "push"], cwd=RAIZ, capture_output=True, text=True, env=env_push
+        ["git", "push"], cwd=RAIZ, capture_output=True, text=True, env=env_push, check=False
     )
     print(r4.stdout, end="", flush=True)
     print(r4.stderr, end="", flush=True)

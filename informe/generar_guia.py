@@ -7,9 +7,11 @@ Uso:
 Sin --nombre/--ru/--ci usa placeholders entre corchetes.
 """
 import argparse
+import io
 import json
 import pathlib
 
+import qrcode
 from reportlab.lib import colors
 from reportlab.lib.enums import TA_CENTER, TA_JUSTIFY
 from reportlab.lib.pagesizes import A4
@@ -77,6 +79,15 @@ def imagen(nombre, ancho=15.5):
     return Image(str(ruta), width=ancho * cm, height=ancho * cm * h / w)
 
 
+def qr_imagen(url, ancho_cm=3.0):
+    """Genera un código QR del enlace del repositorio."""
+    img = qrcode.make(url)
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    buf.seek(0)
+    return Image(buf, width=ancho_cm * cm, height=ancho_cm * cm)
+
+
 def cargar_corridas(ruta_json):
     datos = json.loads(pathlib.Path(ruta_json).read_text(encoding="utf-8"))
     return datos["meta"], datos["corridas"]
@@ -107,6 +118,12 @@ def portada(story, args):
     story.append(Paragraph(
         f'Repositorio GitHub: <a href="{args.repo}" color="#1155cc">{args.repo}</a>',
         ParagraphStyle("repo", parent=CENT, fontSize=9.5, leading=12),
+    ))
+    story.append(Spacer(1, 0.4 * cm))
+    story.append(qr_imagen(args.repo, 3.0))
+    story.append(Paragraph(
+        "Escanea el código o copia el enlace para entrar al repositorio",
+        ParagraphStyle("qrcap", parent=CAP),
     ))
     story.append(PageBreak())
 

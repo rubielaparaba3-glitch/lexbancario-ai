@@ -10,12 +10,22 @@ st.set_page_config(
 )
 
 API_URL = os.getenv("API_URL", "http://127.0.0.1:8000/api/consultar")
+SCRAPER_URL = os.getenv("SCRAPER_URL", "http://127.0.0.1:8001/api/ingestar-web")
 
 # Barra lateral con controles
 with st.sidebar:
     st.image("https://upload.wikimedia.org/wikipedia/commons/thumb/c/c5/Escudo_de_Bolivia.svg/200px-Escudo_de_Bolivia.svg.png", width=70)
     st.title("⚖️ Control Normativo")
     st.markdown("Sistema RAG para resoluciones **ASFI** y normativa de **Banco Unión**.")
+    st.divider()
+    
+    st.subheader("Colección a consultar")
+    coleccion_id = st.text_input(
+        "Colección (coleccion_id)",
+        value="normativa_bancaria",
+        help="Obligatorio: búsqueda estrictamente filtrada por esta colección",
+    )
+    
     st.divider()
     
     st.subheader("Configuración de Recuperación")
@@ -58,6 +68,7 @@ if prompt := st.chat_input("Escribe tu consulta legal o normativa (ej. facultade
         with st.spinner("Consultando base vectorial y generando fundamentación jurídica..."):
             payload = {
                 "pregunta": prompt,
+                "coleccion_id": coleccion_id.strip() or "normativa_bancaria",
                 "top_k": top_k,
                 "match_threshold": threshold
             }

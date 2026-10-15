@@ -1,0 +1,16 @@
+{
+  "_descripcion": "Conjunto de prueba del benchmark: 10 URLs reales de tamaños similares (69-184 KB de HTML). Todas verificadas con HTTP 200 en la fecha de la practica. Se descartaron paginas de >270 KB por desbalance de tamano.",
+  "_fecha_validacion": "2026-10-15",
+  "urls": [
+    "https://es.wikipedia.org/wiki/Derecho_tributario",
+    "https://es.wikipedia.org/wiki/Banco_central",
+    "https://es.wikipedia.org/wiki/Lavado_de_dinero",
+    "https://es.wikipedia.org/wiki/Pol%C3%ADtica_monetaria",
+    "https://es.wikipedia.org/wiki/Activo_(contabilidad)",
+    "https://es.wikipedia.org/wiki/C%C3%B3digo_civil",
+    "https://es.wikipedia.org/wiki/Responsabilidad_civil",
+    "https://es.wikipedia.org/wiki/Encaje_bancario",
+    "https://es.wikipedia.org/wiki/Regulaci%C3%B3n_financiera",
+    "https://es.wikipedia.org/wiki/Funci%C3%B3n_p%C3%BAblica"
+  ]
+}

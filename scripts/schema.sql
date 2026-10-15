@@ -1,3 +1,9 @@
+-- ============================================================
+-- Práctica de Laboratorio: Pipeline RAG Multi-Dominio
+-- Requerimiento 1 - Aislamiento vectorial multi-tenant
+-- Ejecutar en el SQL Editor de Supabase o vía scripts/aplicar_schema.py
+-- ============================================================
+
 create extension if not exists vector;
 
 create table if not exists normativa_bancaria (
@@ -11,10 +17,24 @@ create table if not exists normativa_bancaria (
   embedding vector(768)
 );
 
+-- Columna de aislamiento lógico (namespace multi-tenant).
+-- Las filas existentes quedan en la colección por defecto.
+alter table normativa_bancaria
+  add column if not exists coleccion_id varchar(50) not null default 'normativa_bancaria';
+
+-- Índice B-Tree sobre coleccion_id: filtrado estricto por dominio
+create index if not exists normativa_bancaria_coleccion_id_idx
+  on normativa_bancaria
+  using btree (coleccion_id);
+
+-- Índice vectorial HNSW para similitud coseno
 create index if not exists normativa_bancaria_embedding_idx
   on normativa_bancaria
   using hnsw (embedding vector_cosine_ops);
 
+-- ------------------------------------------------------------
+-- RPC original (compatibilidad: SIN filtro de colección)
+-- ------------------------------------------------------------
 create or replace function match_normativa(
   query_embedding vector(768),
   match_threshold float,
@@ -44,7 +64,54 @@ begin
     nb.contenido,
     1 - (nb.embedding <=> query_embedding) as similarity
   from normativa_bancaria nb
-  where 1 - (nb.embedding <=> query_embedding) > match_threshold
+  where nb.embedding is not null
+    and 1 - (nb.embedding <=> query_embedding) > match_threshold
+  order by nb.embedding <=> query_embedding
+  limit match_count;
+end;
+$$;
+
+-- ------------------------------------------------------------
+-- RPC filtrada por colección (Requerimiento 1)
+-- Evalúa la distancia coseno (<=>) únicamente sobre las tuplas
+-- cuya coleccion_id coincide con la colección solicitada:
+-- cero contaminación cruzada entre especializaciones.
+-- ------------------------------------------------------------
+create or replace function match_normativa_coleccion(
+  query_embedding vector(768),
+  match_threshold float,
+  match_count int,
+  p_coleccion_id varchar
+)
+returns table (
+  id bigint,
+  documento_origen text,
+  organismo text,
+  tipo_norma text,
+  jerarquia text,
+  articulo_ref text,
+  contenido text,
+  similarity float,
+  coleccion_id varchar
+)
+language plpgsql
+as $$
+begin
+  return query
+  select
+    nb.id,
+    nb.documento_origen,
+    nb.organismo,
+    nb.tipo_norma,
+    nb.jerarquia,
+    nb.articulo_ref,
+    nb.contenido,
+    1 - (nb.embedding <=> query_embedding) as similarity,
+    nb.coleccion_id
+  from normativa_bancaria nb
+  where nb.coleccion_id = p_coleccion_id
+    and nb.embedding is not null
+    and 1 - (nb.embedding <=> query_embedding) > match_threshold
   order by nb.embedding <=> query_embedding
   limit match_count;
 end;

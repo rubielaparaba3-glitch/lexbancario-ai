@@ -5,11 +5,13 @@ from typing import List, Optional
 import httpx
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from dotenv import load_dotenv
 from supabase import create_client, Client
 from google import genai
 from google.genai import types
+
+from pipeline.api_ingesta import router as ingesta_router
 
 load_dotenv()
 
@@ -42,8 +44,18 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Endpoint de ingesta concurrente (compartido con el servicio scraper)
+app.include_router(ingesta_router)
+
 class ConsultaRequest(BaseModel):
     pregunta: str
+    coleccion_id: str = Field(
+        ...,
+        min_length=1,
+        max_length=50,
+        pattern=r"^[A-Za-z0-9_\-]{1,50}$",
+        description="Colección/namespace obligatorio: la búsqueda se restringe estrictamente a él",
+    )
     top_k: Optional[int] = 4
     match_threshold: Optional[float] = 0.35
 
@@ -79,7 +91,12 @@ def reintentar(fn, intentos=3, espera_base=3):
             break
     raise ultimo_error
 
-def buscar_contexto(pregunta: str, top_k: int, match_threshold: float):
+def buscar_contexto(pregunta: str, coleccion_id: str, top_k: int, match_threshold: float):
+    """Búsqueda vectorial cegada por colección (RPC match_normativa_coleccion).
+
+    La función PL/pgSQL evalúa la distancia coseno únicamente sobre las
+    tuplas cuya coleccion_id coincide: cero contaminación cruzada.
+    """
     res_emb = reintentar(lambda: ai_client.models.embed_content(
         model=MODEL_EMBEDDING,
         contents=[pregunta],
@@ -87,10 +104,11 @@ def buscar_contexto(pregunta: str, top_k: int, match_threshold: float):
     ))
     query_vector = res_emb.embeddings[0].values
 
-    rpc_res = reintentar(lambda: supabase.rpc("match_normativa", {
+    rpc_res = reintentar(lambda: supabase.rpc("match_normativa_coleccion", {
         "query_embedding": query_vector,
         "match_threshold": match_threshold,
-        "match_count": top_k
+        "match_count": top_k,
+        "p_coleccion_id": coleccion_id
     }).execute())
 
     return rpc_res.data or []
@@ -103,7 +121,10 @@ def generar_con_respaldo(prompt: str) -> str:
             res = ai_client.models.generate_content(
                 model=modelo,
                 contents=prompt,
-                config={"max_output_tokens": 1024}
+                config={
+                    "max_output_tokens": 1024,
+                    "temperature": 0.0,
+                },
             )
             if not res.text and res.candidates and res.candidates[0].content:
                 res.text = "".join(p.text or "" for p in res.candidates[0].content.parts)
@@ -132,14 +153,22 @@ def consultar_normativa(req: ConsultaRequest):
         raise HTTPException(status_code=400, detail="La pregunta no puede estar vacía.")
 
     try:
-        docs = buscar_contexto(req.pregunta, req.top_k, req.match_threshold)
+        docs = buscar_contexto(
+            req.pregunta,
+            req.coleccion_id,
+            req.top_k,
+            req.match_threshold,
+        )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error en búsqueda vectorial: {e}")
 
     if not docs:
         return ConsultaResponse(
             pregunta=req.pregunta,
-            respuesta="No cuento con información suficiente en los documentos cargados para responder esto con certeza.",
+            respuesta=(
+                "No cuento con información suficiente en los documentos cargados "
+                f"para la colección '{req.coleccion_id}' para responder esto con certeza."
+            ),
             fuentes=[]
         )
 
@@ -157,6 +186,7 @@ def consultar_normativa(req: ConsultaRequest):
     prompt = f"""Eres un asesor legal bancario especializado en normativa de la ASFI y Banco Unión.
 Responde de forma rigurosa, clara y estructurada utilizando EXCLUSIVAMENTE el siguiente contexto normativo.
 Cita siempre el artículo o resolución de respaldo. Si algo no figura en el texto provisto, acláralo expresamente.
+Regla: No inventes, no deduzcas fuera del contexto. La consulta está restringida a la colección temática: {req.coleccion_id}.
 
 CONTEXTO NORMATIVO:
 {contexto_texto}

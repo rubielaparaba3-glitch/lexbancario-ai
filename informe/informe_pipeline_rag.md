@@ -123,35 +123,35 @@ de FastAPI, sin bloquear el event loop.
 
 | p (workers) | Modo | T_p (s) | S_p = T1/T_p | E_p = S_p/p (%) | Chunks |
 |---|---|---|---|---|---|
-| 1 | secuencial (bucle simple, 1 worker) | 8.41 | 1.000 | 100.0 | 336 |
-| 2 | paralelo (2 workers) | 6.51 | 1.291 | 64.5 | 336 |
-| 4 | paralelo (4 workers) | 4.97 | 1.692 | 42.3 | 336 |
-| 8 | paralelo (8 workers) | 6.41 | 1.312 | 16.4 | 336 |
+| 1 | secuencial (bucle simple, 1 worker) | 7.92 | 1.000 | 100.0 | 336 |
+| 2 | paralelo (2 workers) | 5.28 | 1.500 | 75.0 | 336 |
+| 4 | paralelo (4 workers) | 5.43 | 1.459 | 36.5 | 336 |
+| 8 | paralelo (8 workers) | 4.92 | 1.610 | 20.1 | 336 |
 
 ### 7.2 Desglose temporal por fase
 
 | p | Scraping/Red | Chunking/CPU | API Embeddings | Inserción Supabase |
 |---|---|---|---|---|
-| 1 | 2.41 s (28.6%) | 0.00 s (0.0%) | 0.03 s (0.3%) | 5.97 s (71.0%) |
-| 2 | 3.10 s (47.6%) | 0.02 s (0.3%) | 0.05 s (0.7%) | 3.35 s (51.4%) |
-| 4 | 1.10 s (22.1%) | 0.01 s (0.3%) | 0.03 s (0.6%) | 3.83 s (77.0%) |
-| 8 | 1.40 s (21.8%) | 0.03 s (0.4%) | 0.03 s (0.5%) | 4.96 s (77.3%) |
+| 1 | 2.38 s (30.0%) | 0.00 s (0.0%) | 0.03 s (0.3%) | 5.52 s (69.6%) |
+| 2 | 1.59 s (30.2%) | 0.02 s (0.5%) | 0.03 s (0.6%) | 3.63 s (68.8%) |
+| 4 | 1.24 s (22.9%) | 0.02 s (0.3%) | 0.04 s (0.7%) | 4.13 s (76.0%) |
+| 8 | 1.57 s (31.8%) | 0.02 s (0.4%) | 0.03 s (0.7%) | 3.30 s (67.1%) |
 
 ### 7.3 Gráficos
 
-![speedup_20261015_125816](/home/firnt/Descargas/lexbancario-ai(2)/lexbancario-ai/benchmark/resultados/speedup_20261015_125816.png|width=90%)
+![speedup_20261015_133100](/home/firnt/Descargas/lexbancario-ai(2)/lexbancario-ai/benchmark/resultados/speedup_20261015_133100.png|width=90%)
 
-![eficiencia_20261015_125816](/home/firnt/Descargas/lexbancario-ai(2)/lexbancario-ai/benchmark/resultados/eficiencia_20261015_125816.png|width=90%)
+![eficiencia_20261015_133100](/home/firnt/Descargas/lexbancario-ai(2)/lexbancario-ai/benchmark/resultados/eficiencia_20261015_133100.png|width=90%)
 
-![fases_20261015_125816](/home/firnt/Descargas/lexbancario-ai(2)/lexbancario-ai/benchmark/resultados/fases_20261015_125816.png|width=90%)
+![fases_20261015_133100](/home/firnt/Descargas/lexbancario-ai(2)/lexbancario-ai/benchmark/resultados/fases_20261015_133100.png|width=90%)
 
 ## 8. Análisis: Ley de Amdahl y cuellos de botella
 
-El desglose evidencia que la fase de **API de embeddings** concentra hasta el **0.7%** del tiempo total y que el **scraping/red** representa hasta el **47.6%**. Como la fase de embeddings se ejecuta de forma serializada (por el límite de tasa del proveedor externo), su tiempo es una fracción no paralelizable *f* que domina el denominador de la Ley de Amdahl:
+El desglose evidencia que la fase de **API de embeddings** concentra hasta el **0.7%** del tiempo total y que el **scraping/red** representa hasta el **31.8%**. Como la fase de embeddings se ejecuta de forma serializada (por el límite de tasa del proveedor externo), su tiempo es una fracción no paralelizable *f* que domina el denominador de la Ley de Amdahl:
 
 > S(p) = 1 / ((1 - f) + f / p)
 
-Aunque el scraping y el chunking escalen casi linealmente con *p*, el Speedup observado se estabiliza en torno a **1.69x** porque el cuello de botella es la E/S externa (rate limits / latencia de la API de embeddings) y no la capacidad de cómputo local. La eficiencia E_p = S_p/p decae en consecuencia al aumentar los workers, confirmando que la aceleración no puede crecer de forma sostenida mientras la fase serial permanezca constante. La medición complementaria en modo *dry-run* (embeddings sintéticos) permite aislar el paralelismo puro de red/CPU del límite impuesto por el tercero.
+Aunque el scraping y el chunking escalen casi linealmente con *p*, el Speedup observado se estabiliza en torno a **1.61x** porque el cuello de botella es la E/S externa (rate limits / latencia de la API de embeddings) y no la capacidad de cómputo local. La eficiencia E_p = S_p/p decae en consecuencia al aumentar los workers, confirmando que la aceleración no puede crecer de forma sostenida mientras la fase serial permanezca constante. La medición complementaria en modo *dry-run* (embeddings sintéticos) permite aislar el paralelismo puro de red/CPU del límite impuesto por el tercero.
 
 ## 9. Conclusiones
 

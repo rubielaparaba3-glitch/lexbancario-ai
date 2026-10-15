@@ -1,0 +1,61 @@
+[*] Benchmark de ingesta | URLs: 10 | workers: [1, 2, 4, 8] | modo: real
+[*] Chunking: size=1000, overlap=200
+
+[>] Corrida p=1 → colección 'bench_p1' ...
+    [rate-limit] 429/RESOURCE_EXHAUSTED en lote 16: espera 2.5s (intento 1/6)
+    [rate-limit] 429/RESOURCE_EXHAUSTED en lote 16: espera 5.0s (intento 2/6)
+    [rate-limit] 429/RESOURCE_EXHAUSTED en lote 16: espera 8.9s (intento 3/6)
+    [rate-limit] 429/RESOURCE_EXHAUSTED en lote 16: espera 16.6s (intento 4/6)
+    [rate-limit] 429/RESOURCE_EXHAUSTED en lote 16: espera 32.1s (intento 5/6)
+    [rate-limit] 429/RESOURCE_EXHAUSTED en lote 26: espera 2.5s (intento 1/6)
+    [rate-limit] 429/RESOURCE_EXHAUSTED en lote 26: espera 5.0s (intento 2/6)
+    [rate-limit] 429/RESOURCE_EXHAUSTED en lote 26: espera 8.6s (intento 3/6)
+    [rate-limit] 429/RESOURCE_EXHAUSTED en lote 26: espera 16.0s (intento 4/6)
+    [✓] T=166.26s | chunks=336 | urls_ok=10/10
+
+[>] Corrida p=2 → colección 'bench_p2' ...
+    [rate-limit] 429/RESOURCE_EXHAUSTED en lote 2: espera 2.4s (intento 1/6)
+    [rate-limit] 429/RESOURCE_EXHAUSTED en lote 2: espera 4.7s (intento 2/6)
+    [rate-limit] 429/RESOURCE_EXHAUSTED en lote 2: espera 8.7s (intento 3/6)
+    [rate-limit] 429/RESOURCE_EXHAUSTED en lote 12: espera 2.3s (intento 1/6)
+    [rate-limit] 429/RESOURCE_EXHAUSTED en lote 12: espera 4.2s (intento 2/6)
+    [rate-limit] 429/RESOURCE_EXHAUSTED en lote 12: espera 8.9s (intento 3/6)
+    [rate-limit] 429/RESOURCE_EXHAUSTED en lote 12: espera 16.7s (intento 4/6)
+    [rate-limit] 429/RESOURCE_EXHAUSTED en lote 12: espera 32.5s (intento 5/6)
+    [rate-limit] 429/RESOURCE_EXHAUSTED en lote 22: espera 2.5s (intento 1/6)
+    [rate-limit] 429/RESOURCE_EXHAUSTED en lote 22: espera 4.8s (intento 2/6)
+    [rate-limit] 429/RESOURCE_EXHAUSTED en lote 22: espera 8.1s (intento 3/6)
+    [rate-limit] 429/RESOURCE_EXHAUSTED en lote 22: espera 16.0s (intento 4/6)
+    [rate-limit] 429/RESOURCE_EXHAUSTED en lote 32: espera 2.7s (intento 1/6)
+    [rate-limit] 429/RESOURCE_EXHAUSTED en lote 32: espera 4.1s (intento 2/6)
+    [rate-limit] 429/RESOURCE_EXHAUSTED en lote 32: espera 8.2s (intento 3/6)
+    [rate-limit] 429/RESOURCE_EXHAUSTED en lote 32: espera 16.4s (intento 4/6)
+    [✓] T=214.24s | chunks=336 | urls_ok=10/10
+
+[>] Corrida p=4 → colección 'bench_p4' ...
+    [rate-limit] 429/RESOURCE_EXHAUSTED en lote 8: espera 2.4s (intento 1/6)
+    [rate-limit] 429/RESOURCE_EXHAUSTED en lote 8: espera 4.1s (intento 2/6)
+    [rate-limit] 429/RESOURCE_EXHAUSTED en lote 8: espera 8.9s (intento 3/6)
+    [rate-limit] 429/RESOURCE_EXHAUSTED en lote 8: espera 16.2s (intento 4/6)
+    [rate-limit] 429/RESOURCE_EXHAUSTED en lote 18: espera 3.0s (intento 1/6)
+    [rate-limit] 429/RESOURCE_EXHAUSTED en lote 18: espera 4.1s (intento 2/6)
+    [rate-limit] 429/RESOURCE_EXHAUSTED en lote 18: espera 8.1s (intento 3/6)
+    [rate-limit] 429/RESOURCE_EXHAUSTED en lote 18: espera 16.8s (intento 4/6)
+    [rate-limit] 429/RESOURCE_EXHAUSTED en lote 18: espera 32.6s (intento 5/6)
+    [rate-limit] 429/RESOURCE_EXHAUSTED en lote 28: espera 2.8s (intento 1/6)
+    [rate-limit] 429/RESOURCE_EXHAUSTED en lote 28: espera 5.0s (intento 2/6)
+    [rate-limit] 429/RESOURCE_EXHAUSTED en lote 28: espera 8.6s (intento 3/6)
+    [rate-limit] 429/RESOURCE_EXHAUSTED en lote 33: espera 2.8s (intento 1/6)
+    [rate-limit] 429/RESOURCE_EXHAUSTED en lote 33: espera 4.7s (intento 2/6)
+    [rate-limit] 429/RESOURCE_EXHAUSTED en lote 33: espera 8.2s (intento 3/6)
+    [rate-limit] 429/RESOURCE_EXHAUSTED en lote 33: espera 16.6s (intento 4/6)
+    [rate-limit] 429/RESOURCE_EXHAUSTED en lote 33: espera 32.1s (intento 5/6)
+    [rate-limit] 429/RESOURCE_EXHAUSTED en lote 33: espera 60.7s (intento 6/6)
+    [X] Error en la corrida p=4: 429 RESOURCE_EXHAUSTED. {'error': {'code': 429, 'message': 'You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \n* Quota exceeded for metric: generativelanguage.googleapis.com/embed_content_free_tier_requests, limit: 1000, model: gemini-embedding-1.0\nPlease retry in 5h36m18.525730184s.', 'status': 'RESOURCE_EXHAUSTED', 'details': [{'@type': 'type.googleapis.com/google.rpc.Help', 'links': [{'description': 'Learn more about Gemini API quotas', 'url': 'https://ai.google.dev/gemini-api/docs/rate-limits'}]}, {'@type': 'type.googleapis.com/google.rpc.QuotaFailure', 'violations': [{'quotaMetric': 'generativelanguage.googleapis.com/embed_content_free_tier_requests', 'quotaId': 'EmbedContentRequestsPerDayPerUserPerProjectPerModel-FreeTier', 'quotaDimensions': {'location': 'global', 'model': 'gemini-embedding-1.0'}, 'quotaValue': '1000'}]}, {'@type': 'type.googleapis.com/google.rpc.RetryInfo', 'retryDelay': '20178s'}]}}
+
+[>] Corrida p=8 → colección 'bench_p8' ...
+    [rate-limit] 429/RESOURCE_EXHAUSTED en lote 1: espera 2.1s (intento 1/6)
+    [rate-limit] 429/RESOURCE_EXHAUSTED en lote 1: espera 4.4s (intento 2/6)
+    [rate-limit] 429/RESOURCE_EXHAUSTED en lote 1: espera 8.9s (intento 3/6)
+    [rate-limit] 429/RESOURCE_EXHAUSTED en lote 1: espera 16.7s (intento 4/6)
+    [rate-limit] 429/RESOURCE_EXHAUSTED en lote 1: espera 32.4s (intento 5/6)

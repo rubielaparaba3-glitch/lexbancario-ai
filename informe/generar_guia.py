@@ -116,14 +116,8 @@ def portada(story, args):
     ))
     story.append(Spacer(1, 1.0 * cm))
     story.append(Paragraph(
-        f'Repositorio GitHub: <a href="{args.repo}" color="#1155cc">{args.repo}</a>',
-        ParagraphStyle("repo", parent=CENT, fontSize=9.5, leading=12),
-    ))
-    story.append(Spacer(1, 0.4 * cm))
-    story.append(qr_imagen(args.repo, 3.0))
-    story.append(Paragraph(
-        "Escanea el código o copia el enlace para entrar al repositorio",
-        ParagraphStyle("qrcap", parent=CAP),
+        f'Repositorio GitHub: <a href="{args.repo}" color="#1155cc"><u>{args.repo}</u></a>',
+        ParagraphStyle("repo", parent=CENT, fontSize=10, leading=13),
     ))
     story.append(PageBreak())
 

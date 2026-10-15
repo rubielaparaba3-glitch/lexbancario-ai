@@ -1,0 +1,5 @@
+p,modo,coleccion,total_s,total_wall_s,scraping_red_s,chunking_cpu_s,api_embeddings_s,insercion_supabase_s,chunks,urls_ok,urls_fallidas,pct_scraping_red,pct_chunking_cpu,pct_api_embeddings,pct_insercion_supabase,speedup,eficiencia_pct
+1,"secuencial (bucle simple, 1 worker)",bench_p1,7.923,7.929,2.379,0.002,0.027,5.516,336,10,0,30.03,0.03,0.34,69.62,1.0,100.0
+2,paralelo (2 workers),bench_p2,5.283,5.287,1.594,0.024,0.031,3.634,336,10,0,30.17,0.45,0.59,68.79,1.5,75.0
+4,paralelo (4 workers),bench_p4,5.432,5.437,1.243,0.019,0.04,4.13,336,10,0,22.88,0.35,0.74,76.03,1.459,36.48
+8,paralelo (8 workers),bench_p8,4.921,4.924,1.566,0.021,0.032,3.301,336,10,0,31.82,0.43,0.65,67.08,1.61,20.12

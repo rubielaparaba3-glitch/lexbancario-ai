@@ -272,7 +272,8 @@ def seccion_fases(story, repo):
     story.append(barra())
     story.append(Paragraph("Fase 1: Clonación y configuración del entorno", H2))
     story.append(Paragraph(
-        f"<font face='Courier'>git clone {repo}.git &amp;&amp; cd lexbancario-ai</font>; "
+        f"<font face='Courier'>git clone <a href=\"{repo}\" color=\"#1155cc\">{repo}.git</a>"
+        " &amp;&amp; cd lexbancario-ai</font>; "
         "<font face='Courier'>cp .env.example .env</font> definiendo "
         "<font face='Courier'>SUPABASE_URL</font>, <font face='Courier'>SUPABASE_SERVICE_ROLE_KEY</font> y "
         "<font face='Courier'>GEMINI_API_KEY</font>.", BODY))
@@ -376,8 +377,15 @@ def main() -> int:
     def pie(canvas, _doc):
         canvas.saveState()
         canvas.setFont("Helvetica", 7.5)
-        canvas.setFillColor(colors.HexColor("#666666"))
-        canvas.drawCentredString(A4[0] / 2, 1.0 * cm, f"Repositorio: {args.repo}")
+        canvas.setFillColor(colors.HexColor("#1155cc"))
+        texto = f"Repositorio: {args.repo}"
+        ancho = canvas.stringWidth(texto, "Helvetica", 7.5)
+        x = A4[0] / 2
+        y = 1.0 * cm
+        canvas.drawCentredString(x, y, texto)
+        canvas.linkURL(
+            args.repo, (x - ancho / 2, y - 2, x + ancho / 2, y + 8), relative=0
+        )
         canvas.restoreState()
 
     doc.build(story, onFirstPage=pie, onLaterPages=pie)

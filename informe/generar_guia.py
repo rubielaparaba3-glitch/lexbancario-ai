@@ -103,6 +103,11 @@ def portada(story, args):
         "CONCURRENTE DE NORMATIVA RAG",
         ParagraphStyle("tt", parent=CENT, fontSize=13.5, leading=18, fontName="Helvetica-Bold"),
     ))
+    story.append(Spacer(1, 1.0 * cm))
+    story.append(Paragraph(
+        f'Repositorio GitHub: <a href="{args.repo}" color="#1155cc">{args.repo}</a>',
+        ParagraphStyle("repo", parent=CENT, fontSize=9.5, leading=12),
+    ))
     story.append(PageBreak())
 
 
@@ -262,12 +267,12 @@ def seccion_cpu(story):
         story.append(Paragraph(txt, BULLET, bulletText="\u2022"))
 
 
-def seccion_fases(story):
+def seccion_fases(story, repo):
     story.append(Paragraph("6. Desarrollo por Fases (1-4)", H1))
     story.append(barra())
     story.append(Paragraph("Fase 1: Clonación y configuración del entorno", H2))
     story.append(Paragraph(
-        "<font face='Courier'>git clone &hellip;/lexbancario-ai.git &amp;&amp; cd lexbancario-ai</font>; "
+        f"<font face='Courier'>git clone {repo}.git &amp;&amp; cd lexbancario-ai</font>; "
         "<font face='Courier'>cp .env.example .env</font> definiendo "
         "<font face='Courier'>SUPABASE_URL</font>, <font face='Courier'>SUPABASE_SERVICE_ROLE_KEY</font> y "
         "<font face='Courier'>GEMINI_API_KEY</font>.", BODY))
@@ -345,6 +350,7 @@ def main() -> int:
     ap.add_argument("--ci", default="[CI]")
     ap.add_argument("--materia", default="Sistemas Paralelos")
     ap.add_argument("--docente", default="Ing. Elias Cassal Baldiviezo")
+    ap.add_argument("--repo", default="https://github.com/rubielaparaba3-glitch/lexbancario-ai")
     ap.add_argument("--out", default=str(RAIZ / "informe" / "Guia_Practica_RAG.pdf"))
     args = ap.parse_args()
 
@@ -363,10 +369,18 @@ def main() -> int:
     seccion_metricas(story, meta, corridas, ts)
     story.append(PageBreak())
     seccion_cpu(story)
-    seccion_fases(story)
+    seccion_fases(story, args.repo)
     seccion_conclusiones(story)
     seccion_referencias(story)
-    doc.build(story)
+
+    def pie(canvas, _doc):
+        canvas.saveState()
+        canvas.setFont("Helvetica", 7.5)
+        canvas.setFillColor(colors.HexColor("#666666"))
+        canvas.drawCentredString(A4[0] / 2, 1.0 * cm, f"Repositorio: {args.repo}")
+        canvas.restoreState()
+
+    doc.build(story, onFirstPage=pie, onLaterPages=pie)
     print(f"[✓] PDF: {args.out}")
     return 0
 
